@@ -34,5 +34,11 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT"
 }
