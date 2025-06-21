@@ -1,0 +1,38 @@
+{
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acorcutt/unsqlite.git"
+  },
+  "author": "Anthony Corcutt <acorcutt@gmail.com>",
+  "name": "unsqlite",
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts",
+    "test": "bun test",
+    "example": "bun run src/example.ts"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./adapters/bun": {
+      "import": "./dist/adapters/bun.js",
+      "require": "./dist/adapters/bun.js"
+    },
+    "./adapters/libsql": {
+      "import": "./dist/adapters/libsql.js",
+      "require": "./dist/adapters/libsql.js"
+    }
+  },
+  "devDependencies": {
+    "@libsql/client": "^0.15.0",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
