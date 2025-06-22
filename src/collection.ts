@@ -87,6 +87,46 @@ export class Collection<TID, TDATA> {
   find(query?: QueryObject) {
     return new QueryBuilder<TDATA>(this.table, this.dataCol.column, { select: this.db.select }, query);
   }
+
+  async index(name: string, expr: any, options: { unique?: boolean; type?: string; order?: "ASC" | "DESC" } = {}): Promise<void> {
+    // Accepts any valid index expression (field path, fn, cast, arithmetic, etc.)
+    // For backward compatibility, allow string or { $: string } as a field selector
+    let indexExpr = expr;
+    if (typeof expr === "string") {
+      indexExpr = { $: expr };
+    }
+    // Validate input: must be string, { $: string }, or a supported operator object
+    function isValidIndexExpr(e: any): boolean {
+      if (typeof e === "string") return true;
+      if (e && typeof e === "object") {
+        if (typeof e.$ === "string") return true;
+        if (e.$fn && Array.isArray(e.$fn) && typeof e.$fn[0] === "string") return true;
+        if (e.$cast && Array.isArray(e.$cast) && e.$cast.length === 2) return true;
+        if (e.$add && Array.isArray(e.$add) && e.$add.length === 2) return true;
+        if (e.$sub && Array.isArray(e.$sub) && e.$sub.length === 2) return true;
+        if (e.$mul && Array.isArray(e.$mul) && e.$mul.length === 2) return true;
+        if (e.$div && Array.isArray(e.$div) && e.$div.length === 2) return true;
+      }
+      return false;
+    }
+    if (!isValidIndexExpr(expr)) {
+      throw new Error("Invalid index expression: must be a string, field path, function, cast, or arithmetic expression");
+    }
+    // Use the index-compiler to generate the SQL expression
+    // Swap json_extract/jsonb_extract if needed
+    const { compileIndexExpression } = await import("./index-compiler.js");
+    // Patch the compiler to use jsonb_extract if needed
+    let compiled: string = compileIndexExpression(indexExpr);
+    if (this.dataCol.type === "JSONB") {
+      // Replace json_extract with jsonb_extract in the compiled expression
+      compiled = compiled.replace(/json_extract/g, "jsonb_extract");
+    }
+    const unique = options.unique ? "UNIQUE" : "";
+    const type = options.type ? `USING ${options.type}` : "";
+    const order = options.order ? ` ${options.order}` : "";
+    const sql = `CREATE ${unique} INDEX IF NOT EXISTS ${name} ON ${this.table} (${compiled}${order}) ${type}`;
+    await this.db.execute(sql);
+  }
 }
 
 // ID Column interface

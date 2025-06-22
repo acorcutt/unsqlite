@@ -1,5 +1,3 @@
-// --- Minimal Query Builder Primitives ---
-
 // Field path selector
 export type FieldPath = { $: string };
 
@@ -50,4 +48,28 @@ export function or(...args: any[]) {
 // not operator: not(arg) => { $not: [ arg ] }
 export function not(arg: any) {
   return { $not: [arg] };
+}
+
+// Function call operator: fn('lower', arg) => { $fn: ['lower', arg] }
+export function fn(name: string, ...args: any[]) {
+  return { $fn: [name, ...args] };
+}
+
+// Type cast operator: cast(expr, type) => { $cast: [expr, type] }
+export function cast(expr: any, type: string) {
+  return { $cast: [expr, type] };
+}
+
+// Arithmetic operators for index expressions
+export function add(a: any, b: any) {
+  return { $add: [a, b] };
+}
+export function sub(a: any, b: any) {
+  return { $sub: [a, b] };
+}
+export function mul(a: any, b: any) {
+  return { $mul: [a, b] };
+}
+export function div(a: any, b: any) {
+  return { $div: [a, b] };
 }

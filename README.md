@@ -49,6 +49,8 @@ interface UserType {
 
 const db = createClient({ url: ":memory:" });
 const users = await createLibSQLAdapter(db).collection<UserType>("users");
+// Add an index on the "value" field
+await users.createIndex("value_index", $("value"));
 
 await users.insert({ name: "Alice", value: 1 });
 await users.insert({ name: "Bob", value: 2 });
@@ -63,5 +65,6 @@ for await (const user of query.iterate()) {
 }
 
 const count = await query.count();
-console.log(`Total users with value > 1: ${count}`);
+const explain = await query.explain();
+console.log(`Total users with value > 1: ${count}`, explain);
 ```
