@@ -12,10 +12,7 @@ export class BunAdapter {
         },
         select: async function* (sql: string, args?: any[]) {
           const stmt = db.query(sql);
-          const iter = stmt.iterate(...(args ?? []));
-          for (const row of iter) {
-            yield row;
-          }
+          yield* stmt.iterate(...(args ?? []));
         },
         get: async (sql: string, args?: any[]) => {
           const stmt = db.query(sql);
