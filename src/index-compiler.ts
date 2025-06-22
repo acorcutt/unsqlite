@@ -21,8 +21,8 @@ type Arithmetic = { $add: [any, any] } | { $sub: [any, any] } | { $mul: [any, an
 
 type IndexExpr = FieldPath | FnCall | Cast | Arithmetic | any;
 
-function compileFieldPath(field: FieldPath): string {
-  return `json_extract(data, '$.${field.$}')`;
+function compileFieldPath(field: FieldPath, jsonExtract: string, jsonCol: string): string {
+  return `${jsonExtract}(${jsonCol}, '$.${field.$}')`;
 }
 
 function sqlLiteral(val: any): string {
@@ -32,38 +32,38 @@ function sqlLiteral(val: any): string {
   return String(val);
 }
 
-export function compileIndexExpression(expr: IndexExpr): string {
+export function compileIndexExpression(expr: IndexExpr, jsonExtract: string = "json_extract", jsonCol: string = "data"): string {
   // FieldPath
   if (expr && typeof expr === "object" && "$" in expr) {
-    return compileFieldPath(expr as FieldPath);
+    return compileFieldPath(expr as FieldPath, jsonExtract, jsonCol);
   }
   // Function call
   if (expr && typeof expr === "object" && "$fn" in expr) {
     const [fn, ...args] = expr.$fn;
-    return `${fn}(${args.map(compileIndexExpression).join(", ")})`;
+    return `${fn}(${args.map((a) => compileIndexExpression(a, jsonExtract, jsonCol)).join(", ")})`;
   }
   // Type cast
   if (expr && typeof expr === "object" && "$cast" in expr) {
     const [arg, type] = expr.$cast;
-    return `CAST(${compileIndexExpression(arg)} AS ${type})`;
+    return `CAST(${compileIndexExpression(arg, jsonExtract, jsonCol)} AS ${type})`;
   }
   // Arithmetic
   if (expr && typeof expr === "object") {
     if ("$add" in expr) {
       const [a, b] = expr.$add;
-      return `(${compileIndexExpression(a)} + ${compileIndexExpression(b)})`;
+      return `(${compileIndexExpression(a, jsonExtract, jsonCol)} + ${compileIndexExpression(b, jsonExtract, jsonCol)})`;
     }
     if ("$sub" in expr) {
       const [a, b] = expr.$sub;
-      return `(${compileIndexExpression(a)} - ${compileIndexExpression(b)})`;
+      return `(${compileIndexExpression(a, jsonExtract, jsonCol)} - ${compileIndexExpression(b, jsonExtract, jsonCol)})`;
     }
     if ("$mul" in expr) {
       const [a, b] = expr.$mul;
-      return `(${compileIndexExpression(a)} * ${compileIndexExpression(b)})`;
+      return `(${compileIndexExpression(a, jsonExtract, jsonCol)} * ${compileIndexExpression(b, jsonExtract, jsonCol)})`;
     }
     if ("$div" in expr) {
       const [a, b] = expr.$div;
-      return `(${compileIndexExpression(a)} / ${compileIndexExpression(b)})`;
+      return `(${compileIndexExpression(a, jsonExtract, jsonCol)} / ${compileIndexExpression(b, jsonExtract, jsonCol)})`;
     }
   }
   // Literal value

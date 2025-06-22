@@ -7,6 +7,7 @@ import type { DBSelect } from "./collection";
 import { queryCompiler } from "./query-compiler";
 
 export class QueryBuilder<TDATA> {
+  private jsonExtract: string;
   /**
    * Helper to build SQL and params for SELECT queries.
    * Accepts options for explain, count, and whether to include limit/offset.
@@ -17,7 +18,7 @@ export class QueryBuilder<TDATA> {
     let sql = `${explainType ? explainType + " " : ""}${selectClause} FROM ${this.table}`;
     let params: any[] = [];
     if (this.query) {
-      const where = queryCompiler(this.query, this.dataCol);
+      const where = queryCompiler(this.query, this.dataCol, this.jsonExtract);
       if (where.sql) {
         sql += ` WHERE ${where.sql}`;
         params = where.params;
@@ -29,7 +30,7 @@ export class QueryBuilder<TDATA> {
         this._order
           .map(([f, d]) => {
             if (typeof f === "object" && f !== null && "$" in f) {
-              return `json_extract(${this.dataCol}, '$.${f.$}') ${d.toUpperCase()}`;
+              return `${this.jsonExtract}(${this.dataCol}, '$.${f.$}') ${d.toUpperCase()}`;
             } else {
               return `${f} ${d.toUpperCase()}`;
             }
@@ -54,11 +55,12 @@ export class QueryBuilder<TDATA> {
   private _limit?: number;
   private _offset?: number;
 
-  constructor(table: string, dataCol: string, db: { select: DBSelect }, query?: QueryObject) {
+  constructor(table: string, dataCol: string, db: { select: DBSelect }, query?: QueryObject, jsonExtract: string = "json_extract") {
     this.table = table;
     this.dataCol = dataCol;
     this.db = db;
     this.query = query;
+    this.jsonExtract = jsonExtract;
   }
 
   order(field: string | { $: string }, dir: "asc" | "desc" = "asc") {

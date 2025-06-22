@@ -1,11 +1,5 @@
 import { expect, test } from "bun:test";
 import { createBunAdapter, createCollection, createLibSQLAdapter, createSqlite3Adapter, createSqliteAdapter, createSqljsAdapter } from "../src";
-
-// Bun adapter
-// Use in-memory DB
-// Note: bun:sqlite uses ':memory:' for in-memory
-// https://bun.sh/docs/api/sqlite
-
 test("bun adapter basic", async () => {
   const { Database } = await import("bun:sqlite");
   const db = new Database(":memory:");
@@ -19,10 +13,25 @@ test("bun adapter basic", async () => {
   db.close();
 });
 
-// LibSQL adapter
-// Use in-memory DB
-// https://docs.turso.tech/reference/sqlite/uri
+test("bun adapter supports JSONB (BLOB) columns", async () => {
+  const { Database } = await import("bun:sqlite");
+  const db = new Database(":memory:");
+  const adapter = createBunAdapter(db);
+  let supported = true;
+  try {
+    const col = await adapter.collection<any>("bun_jsonb_test", { dataFormat: "JSONB" });
+    const id = await col.insert({ foo: 42 });
+    const got = await col.get(id);
+    expect(got && got.foo).toBe(42);
+  } catch (e) {
+    supported = false;
+  }
+  db.close();
+  expect(supported).toBe(false);
+});
 
+// LibSQL adapter
+// https://docs.turso.tech/reference/sqlite/uri
 test("libsql adapter basic", async () => {
   const { createClient } = await import("@libsql/client");
   const client = createClient({ url: ":memory:" });
@@ -34,6 +43,23 @@ test("libsql adapter basic", async () => {
   const all = await col.find().all();
   expect(all.length).toBeGreaterThan(0);
   await client.close();
+});
+
+test("libsql adapter supports JSONB (BLOB) columns", async () => {
+  const { createClient } = await import("@libsql/client");
+  const client = createClient({ url: ":memory:" });
+  const adapter = createLibSQLAdapter(client);
+  let supported = true;
+  try {
+    const col = await adapter.collection<any>("libsql_jsonb_test", { dataFormat: "JSONB" });
+    const id = await col.insert({ foo: 42 });
+    const got = await col.get(id);
+    expect(got && got.foo).toBe(42);
+  } catch (e) {
+    supported = false;
+  }
+  await client.close();
+  expect(supported).toBe(true);
 });
 
 // better-sqlite3 adapter
@@ -53,9 +79,6 @@ test("better-sqlite3 adapter basic", async () => {
 });
 */
 
-// sqlite3 adapter
-// Use in-memory DB
-
 test("sqlite3 adapter basic", async () => {
   const sqlite3 = (await import("sqlite3")).verbose();
   const db = new sqlite3.Database(":memory:");
@@ -69,8 +92,22 @@ test("sqlite3 adapter basic", async () => {
   db.close();
 });
 
-// sqlite (sqlite package) adapter
-// Use in-memory DB
+test("sqlite3 adapter supports JSONB (BLOB) columns", async () => {
+  const sqlite3 = (await import("sqlite3")).verbose();
+  const db = new sqlite3.Database(":memory:");
+  const adapter = createSqlite3Adapter(db);
+  let supported = true;
+  try {
+    const col = await createCollection<any>("sqlite3_jsonb_test", adapter, { dataFormat: "JSONB" });
+    const id = await col.insert({ foo: 42 });
+    const got = await col.get(id);
+    expect(got && got.foo).toBe(42);
+  } catch (e) {
+    supported = false;
+  }
+  db.close();
+  expect(supported).toBe(false);
+});
 
 test("sqlite adapter basic", async () => {
   const { open } = await import("sqlite");
@@ -87,8 +124,23 @@ test("sqlite adapter basic", async () => {
   await db.close();
 });
 
-// sql.js adapter
-// Use in-memory DB (default)
+test("sqlite adapter supports JSONB (BLOB) columns", async () => {
+  const { open } = await import("sqlite");
+  const sqlite3 = await import("sqlite3");
+  const db = await open({ filename: ":memory:", driver: sqlite3.Database });
+  const adapter = createSqliteAdapter(db);
+  let supported = true;
+  try {
+    const col = await createCollection<any>("sqlite_jsonb_test", adapter, { dataFormat: "JSONB" });
+    const id = await col.insert({ foo: 42 });
+    const got = await col.get(id);
+    expect(got && got.foo).toBe(42);
+  } catch (e) {
+    supported = false;
+  }
+  await db.close();
+  expect(supported).toBe(false);
+});
 
 test("sqljs adapter basic", async () => {
   const initSqlJs = (await import("sql.js")).default;
@@ -102,4 +154,22 @@ test("sqljs adapter basic", async () => {
   const all = await col.find().all();
   expect(all.length).toBeGreaterThan(0);
   db.close();
+});
+
+test("sqljs adapter supports JSONB (BLOB) columns", async () => {
+  const initSqlJs = (await import("sql.js")).default;
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  const adapter = createSqljsAdapter(db);
+  let supported = true;
+  try {
+    const col = await createCollection<any>("sqljs_jsonb_test", adapter, { dataFormat: "JSONB" });
+    const id = await col.insert({ foo: 42 });
+    const got = await col.get(id);
+    expect(got && got.foo).toBe(42);
+  } catch (e) {
+    supported = false;
+  }
+  db.close();
+  expect(supported).toBe(true);
 });

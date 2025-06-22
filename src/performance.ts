@@ -5,8 +5,8 @@ import { createBunAdapter } from "./adapters/bun";
 import { createLibSQLAdapter } from "./adapters/libsql";
 
 // --- Configurable options ---
-const ROWS = 50_000;
-const DATA_FORMAT: "JSON" | "JSONB" = "JSON"; // Change to "JSON" or "JSONB" as needed
+const ROWS = 10_000;
+const DATA_FORMAT: "JSON" | "JSONB" = "JSONB"; // Change to "JSON" or "JSONB" as needed
 const QUERY_TYPE: "eq" | "gt" = "gt"; // Change to 'gt' to test greater-than queries
 const QUERY_LIMIT = 100; // Limit for all queries
 

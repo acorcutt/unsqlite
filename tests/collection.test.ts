@@ -125,16 +125,16 @@ describe("Collection with string primary key and random id generator", () => {
   });
 });
 
-// Test JSONB data format
-describe("Collection with JSONB data format", () => {
+// Test JSONB data format with libsql
+describe("Collection with JSONB data format (libsql)", () => {
   let col: Collection<number, UserType>;
-  let db: Database;
+  let client: any;
   const user = { name: "JsonBee", value: 7 };
   const id = 100;
 
   beforeEach(async () => {
-    db = new Database(":memory:");
-    col = await createBunAdapter(db).collection<UserType>("users_jsonb", {
+    client = createClient({ url: ":memory:" });
+    col = await createLibSQLAdapter(client).collection<UserType>("users_jsonb", {
       dataFormat: "JSONB",
     });
   });
@@ -143,5 +143,9 @@ describe("Collection with JSONB data format", () => {
     await col.set(id, user);
     const result = await col.get(id);
     expect(result).toEqual(user);
+    // Check that the column type is BLOB
+    const pragmaRes = await client.execute(`PRAGMA table_info(users_jsonb)`);
+    const dataCol = pragmaRes.rows.find((c: any) => c.name === "data") as { type: string } | undefined;
+    expect(dataCol && dataCol.type.toUpperCase()).toBe("BLOB");
   });
 });

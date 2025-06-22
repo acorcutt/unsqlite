@@ -30,9 +30,11 @@ export class Collection<TID, TDATA> {
       type: idType,
       generate,
     };
+    // For JSON, use TEXT (or JSON as alias); for JSONB, use BLOB
+    const format = (options.dataFormat || "JSON").toUpperCase() as "JSON" | "JSONB";
     this.dataCol = {
       column: options.dataColumn || "data",
-      type: (options.dataFormat || "JSON").toUpperCase() as "JSON" | "JSONB",
+      type: format,
     };
     this.db = db;
   }
@@ -43,20 +45,30 @@ export class Collection<TID, TDATA> {
     if (Array.isArray(idOrIds)) {
       if (idOrIds.length === 0) return [];
       const placeholders = idOrIds.map(() => "?").join(", ");
-      const sql = `SELECT ${this.idCol.column}, ${this.dataCol.column} FROM ${this.table} WHERE ${this.idCol.column} IN (${placeholders})`;
+      let sql: string;
+      if (this.dataCol.type === "JSONB") {
+        sql = `SELECT ${this.idCol.column}, json(${this.dataCol.column}) as data FROM ${this.table} WHERE ${this.idCol.column} IN (${placeholders})`;
+      } else {
+        sql = `SELECT ${this.idCol.column}, ${this.dataCol.column} as data FROM ${this.table} WHERE ${this.idCol.column} IN (${placeholders})`;
+      }
       const rowMap = new Map<any, any>();
       const iter = this.db.select(sql, idOrIds);
       for await (const row of iter) {
-        let val = row[this.dataCol.column];
+        let val = row["data"];
         if (val !== undefined && val !== null && typeof val === "string") val = JSON.parse(val);
         rowMap.set(row[this.idCol.column], val);
       }
       return idOrIds.map((id) => (rowMap.has(id) ? rowMap.get(id) : undefined));
     } else {
-      const sql = `SELECT ${this.dataCol.column} FROM ${this.table} WHERE ${this.idCol.column} = ?`;
+      let sql: string;
+      if (this.dataCol.type === "JSONB") {
+        sql = `SELECT json(${this.dataCol.column}) as data FROM ${this.table} WHERE ${this.idCol.column} = ?`;
+      } else {
+        sql = `SELECT ${this.dataCol.column} as data FROM ${this.table} WHERE ${this.idCol.column} = ?`;
+      }
       const row = await this.db.get(sql, [idOrIds]);
       if (!row) return undefined;
-      const val = row[this.dataCol.column];
+      const val = row["data"];
       if (val === undefined || val === null) return undefined;
       if (typeof val === "string") return JSON.parse(val);
       return val;
@@ -64,28 +76,52 @@ export class Collection<TID, TDATA> {
   }
 
   async set(id: TID, data: TDATA): Promise<void> {
-    const sql = `INSERT OR REPLACE INTO ${this.table} (${this.idCol.column}, ${this.dataCol.column}) VALUES (?, ?)`;
-    const value = JSON.stringify(data);
+    let sql: string;
+    let value: any;
+    if (this.dataCol.type === "JSONB") {
+      sql = `INSERT OR REPLACE INTO ${this.table} (${this.idCol.column}, ${this.dataCol.column}) VALUES (?, jsonb(?))`;
+      value = JSON.stringify(data);
+    } else {
+      sql = `INSERT OR REPLACE INTO ${this.table} (${this.idCol.column}, ${this.dataCol.column}) VALUES (?, json(?))`;
+      value = JSON.stringify(data);
+    }
     await this.db.execute(sql, [id, value]);
   }
 
   async insert(data: TDATA): Promise<TID> {
-    if (this.idCol.generate) {
-      const generatedId = this.idCol.generate(data);
-      const sql = `INSERT OR REPLACE INTO ${this.table} (${this.idCol.column}, ${this.dataCol.column}) VALUES (?, ?)`;
-      const value = JSON.stringify(data);
-      await this.db.execute(sql, [generatedId, value]);
-      return generatedId;
+    let sql: string;
+    let value: any;
+    if (this.dataCol.type === "JSONB") {
+      value = JSON.stringify(data);
+      if (this.idCol.generate) {
+        const generatedId = this.idCol.generate(data);
+        sql = `INSERT OR REPLACE INTO ${this.table} (${this.idCol.column}, ${this.dataCol.column}) VALUES (?, jsonb(?))`;
+        await this.db.execute(sql, [generatedId, value]);
+        return generatedId;
+      } else {
+        sql = `INSERT INTO ${this.table} (${this.dataCol.column}) VALUES (jsonb(?))`;
+        const result = await this.db.execute(sql, [value]);
+        return await this.db.lastInsertRowid(result);
+      }
     } else {
-      const sql = `INSERT INTO ${this.table} (${this.dataCol.column}) VALUES (?)`;
-      const value = JSON.stringify(data);
-      const result = await this.db.execute(sql, [value]);
-      return await this.db.lastInsertRowid(result);
+      value = JSON.stringify(data);
+      if (this.idCol.generate) {
+        const generatedId = this.idCol.generate(data);
+        sql = `INSERT OR REPLACE INTO ${this.table} (${this.idCol.column}, ${this.dataCol.column}) VALUES (?, json(?))`;
+        await this.db.execute(sql, [generatedId, value]);
+        return generatedId;
+      } else {
+        sql = `INSERT INTO ${this.table} (${this.dataCol.column}) VALUES (json(?))`;
+        const result = await this.db.execute(sql, [value]);
+        return await this.db.lastInsertRowid(result);
+      }
     }
   }
 
   find(query?: QueryObject) {
-    return new QueryBuilder<TDATA>(this.table, this.dataCol.column, { select: this.db.select }, query);
+    // Use json_extract for JSON, jsonb_extract for JSONB
+    const jsonExtract = this.dataCol.type === "JSONB" ? "jsonb_extract" : "json_extract";
+    return new QueryBuilder<TDATA>(this.table, this.dataCol.column, { select: this.db.select }, query, jsonExtract);
   }
 
   async index(name: string, expr: any, options: { unique?: boolean; type?: string; order?: "ASC" | "DESC" } = {}): Promise<void> {
@@ -113,14 +149,9 @@ export class Collection<TID, TDATA> {
       throw new Error("Invalid index expression: must be a string, field path, function, cast, or arithmetic expression");
     }
     // Use the index-compiler to generate the SQL expression
-    // Swap json_extract/jsonb_extract if needed
     const { compileIndexExpression } = await import("./index-compiler.js");
-    // Patch the compiler to use jsonb_extract if needed
-    let compiled: string = compileIndexExpression(indexExpr);
-    if (this.dataCol.type === "JSONB") {
-      // Replace json_extract with jsonb_extract in the compiled expression
-      compiled = compiled.replace(/json_extract/g, "jsonb_extract");
-    }
+    const jsonExtract = this.dataCol.type === "JSONB" ? "jsonb_extract" : "json_extract";
+    let compiled: string = compileIndexExpression(indexExpr, jsonExtract, this.dataCol.column);
     const unique = options.unique ? "UNIQUE" : "";
     const type = options.type ? `USING ${options.type}` : "";
     const order = options.order ? ` ${options.order}` : "";
@@ -156,13 +187,21 @@ export async function createCollection<TDATA = any, TID = number>(
     type: idType,
     generate,
   };
+  // For JSON, use TEXT (or JSON as alias); for JSONB, use BLOB
+  const format = (options.dataFormat || "JSON").toUpperCase() as "JSON" | "JSONB";
   const dataCol = {
     column: options.dataColumn || "data",
-    type: (options.dataFormat || "JSON").toUpperCase() as "JSON" | "JSONB",
+    type: format,
   };
+  let dataColType: string;
+  if (format === "JSONB") {
+    dataColType = "BLOB";
+  } else {
+    dataColType = "JSON"; // or TEXT, but JSON is an alias for TEXT
+  }
   const createSQL = `CREATE TABLE IF NOT EXISTS ${table} (
     ${idCol.column} ${idCol.type},
-    ${dataCol.column} ${dataCol.type}
+    ${dataCol.column} ${dataColType}
   )`;
   await db.execute(createSQL);
   // Check table schema for id and data columns
@@ -187,10 +226,18 @@ export async function createCollection<TDATA = any, TID = number>(
   if (idCol.type.toUpperCase().includes("PRIMARY KEY") && idColDef.pk !== 1) {
     throw new Error(`Table '${table}' id column '${idCol.column}' is not PRIMARY KEY as expected.`);
   }
-  if (!dataColDef || dataColDef.type.toUpperCase() !== dataCol.type.toUpperCase()) {
-    throw new Error(
-      `Table '${table}' data column '${dataCol.column}' type mismatch: expected '${dataCol.type}', found '${dataColDef ? dataColDef.type : "none"}'`
-    );
+  // Accept BLOB for JSONB, JSON (or TEXT) for JSON
+  if (!dataColDef) {
+    throw new Error(`Table '${table}' data column '${dataCol.column}' type mismatch: expected '${dataCol.type}', found 'none'`);
+  }
+  if (dataCol.type === "JSONB") {
+    if (dataColDef.type.toUpperCase() !== "BLOB") {
+      throw new Error(`Table '${table}' data column '${dataCol.column}' type mismatch: expected 'BLOB', found '${dataColDef.type}'`);
+    }
+  } else {
+    if (dataColDef.type.toUpperCase() !== "JSON" && dataColDef.type.toUpperCase() !== "TEXT") {
+      throw new Error(`Table '${table}' data column '${dataCol.column}' type mismatch: expected 'JSON' or 'TEXT', found '${dataColDef.type}'`);
+    }
   }
   return new Collection<TID, TDATA>(table, db, options);
 }
