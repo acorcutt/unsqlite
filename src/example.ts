@@ -1,8 +1,8 @@
 // Import your db
 import { Database } from "bun:sqlite";
 
-// Import the collection from the db adapter
-import { collection } from "./adapters/bun";
+// Import the BunAdapter class
+import { BunAdapter } from "./adapters/bun";
 import { $, gt } from "./operators";
 
 // Define your data type (optional)
@@ -15,7 +15,7 @@ interface UserType {
 const db = new Database(":memory:");
 
 // Create a collection with the table name "users"
-const users = await collection<UserType>(db, "users");
+const users = await BunAdapter.collection<UserType>(db, "users");
 
 // Just insert data
 const id1 = await users.insert({ name: "Alice", value: 1 });
@@ -44,3 +44,6 @@ console.log("Query: ", await query.all(), "Count: ", await query.count());
 for await (const user of query.iterate()) {
   console.log("Iterating User: ", user);
 }
+
+//Explain query
+console.log("Explain: ", await query.explain());

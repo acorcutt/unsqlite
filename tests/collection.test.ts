@@ -1,8 +1,8 @@
 import { createClient } from "@libsql/client";
 import { Database } from "bun:sqlite";
 import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
-import { collection as bunCollection } from "../src/adapters/bun";
-import { collection as libsqlCollection } from "../src/adapters/libsql";
+import { BunAdapter } from "../src/adapters/bun";
+import { LibsqlAdapter } from "../src/adapters/libsql";
 import { $, and, eq, gt, or } from "../src/operators";
 
 interface UserType {
@@ -13,7 +13,7 @@ interface UserType {
 describe("Collection", () => {
   it("can iterate results with .iterate()", async () => {
     const db = new Database(":memory:");
-    const col = await bunCollection<{ n: number }>(db, "iter_users");
+    const col = await BunAdapter.collection<{ n: number }>(db, "iter_users");
     for (let i = 1; i <= 5; ++i) await col.insert({ n: i });
     const iter = col
       .find(gt($("n"), 2))
@@ -28,7 +28,7 @@ describe("Collection", () => {
 
   it("supports query chaining and operators", async () => {
     const db = new Database(":memory:");
-    const col = await bunCollection<{ n: number }>(db, "chain_users");
+    const col = await BunAdapter.collection<{ n: number }>(db, "chain_users");
     for (let i = 1; i <= 10; ++i) await col.insert({ n: i });
     // Query: n > 3 and n < 7
     const query = col.find(and(gt($("n"), 3), { $lt: [$("n"), 7] })).order($("n"), "asc");
@@ -39,7 +39,7 @@ describe("Collection", () => {
     const all2 = await query2.all();
     expect(all2.map((u) => u.n).sort()).toEqual([2, 9]);
   });
-  let col: Awaited<ReturnType<typeof bunCollection<UserType>>>;
+  let col: Awaited<ReturnType<typeof BunAdapter.collection<UserType>>>;
   let db: Database;
   const user1 = { name: "Alice", value: 1 };
   const user2 = { name: "Bob", value: 2 };
@@ -48,7 +48,7 @@ describe("Collection", () => {
 
   beforeEach(async () => {
     db = new Database(":memory:");
-    col = await bunCollection<UserType>(db, "users");
+    col = await BunAdapter.collection<UserType>(db, "users");
   });
   it("set and get single item", async () => {
     await col.set(id1, user1);
@@ -80,7 +80,7 @@ describe("LibSQL Collection", () => {
   it("set and get single item", async () => {
     const testId = 42;
     const testData: UserType = { name: "Test", value: 99 };
-    const libsqlCol = await libsqlCollection<UserType>(client, "test_table");
+    const libsqlCol = await LibsqlAdapter.collection<UserType>(client, "test_table");
     await libsqlCol.set(testId, testData);
     const libsqlOut = await libsqlCol.get(testId);
     expect(libsqlOut).toEqual(testData);
@@ -92,16 +92,16 @@ describe("Collection with string primary key and random id generator", () => {
   function randomId() {
     return Math.random().toString(36).slice(2, 10);
   }
-  let col: Awaited<ReturnType<typeof bunCollection<UserType, string>>>;
+  let col: Awaited<ReturnType<typeof BunAdapter.collection<UserType, string>>>;
   let db: Database;
   const user = { name: "Charlie", value: 3 };
   let generatedId: string;
 
   beforeEach(async () => {
     db = new Database(":memory:");
-    col = await bunCollection<UserType, string>(db, "users_string", {
+    col = await BunAdapter.collection<UserType, string>(db, "users_string", {
       idColumn: "user_id",
-      idType: "STRING",
+      idType: "TEXT PRIMARY KEY",
       idGenerate: randomId,
       dataColumn: "user_data",
       dataFormat: "JSON",
@@ -125,14 +125,14 @@ describe("Collection with string primary key and random id generator", () => {
 
 // Test JSONB data format
 describe("Collection with JSONB data format", () => {
-  let col: Awaited<ReturnType<typeof bunCollection<UserType>>>;
+  let col: Awaited<ReturnType<typeof BunAdapter.collection<UserType>>>;
   let db: Database;
   const user = { name: "JsonBee", value: 7 };
   const id = 100;
 
   beforeEach(async () => {
     db = new Database(":memory:");
-    col = await bunCollection<UserType>(db, "users_jsonb", {
+    col = await BunAdapter.collection<UserType>(db, "users_jsonb", {
       dataFormat: "JSONB",
     });
   });

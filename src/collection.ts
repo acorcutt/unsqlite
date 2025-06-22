@@ -2,10 +2,9 @@
 import { QueryBuilder, type QueryObject } from "./query-builder";
 
 // --- Collection Class Implementation ---
-type IdType = "INTEGER" | "STRING";
-type CollectionOptions<TID = number | string, TDATA = any> = {
+type CollectionOptions<TID = any, TDATA = any> = {
   idColumn?: string;
-  idType?: IdType;
+  idType?: string; // Full SQL type string, e.g. "INTEGER PRIMARY KEY", "TEXT UNIQUE", etc.
   idGenerate?: (data: TDATA) => TID;
   dataColumn?: string;
   dataFormat?: "JSON" | "JSONB";
@@ -23,24 +22,12 @@ class Collection<TID, TDATA> {
     options: CollectionOptions<TID, TDATA> = {}
   ) {
     this.table = table;
-    // Determine SQL type and generator based on idType
-    const idType: IdType = options.idType || "INTEGER";
-    let sqlType: string;
+    // Use user-supplied idType or default to "INTEGER PRIMARY KEY"
     let generate = options.idGenerate;
-    if (idType === "INTEGER") {
-      sqlType = "INTEGER PRIMARY KEY";
-    } else if (idType === "STRING") {
-      sqlType = "TEXT PRIMARY KEY";
-      if (!generate) {
-        // Default to uuid generator for string ids
-        generate = () => crypto.randomUUID() as any;
-      }
-    } else {
-      throw new Error(`Unsupported idType: ${idType}`);
-    }
+    let idType = options.idType || "INTEGER PRIMARY KEY";
     this.idCol = {
       column: options.idColumn || "id",
-      type: sqlType,
+      type: idType,
       generate,
     };
     this.dataCol = {
@@ -105,7 +92,7 @@ class Collection<TID, TDATA> {
 // ID Column interface
 export interface IdColumn<TID = any, TDATA = any> {
   column: string; // e.g. "id"
-  type: string; // e.g. "INTEGER PRIMARY KEY"
+  type: string; // e.g. "INTEGER PRIMARY KEY", "TEXT UNIQUE", etc.
   generate?: (data: TDATA) => TID; // Optional function to generate ID from data
 }
 
@@ -122,25 +109,11 @@ export async function createCollection<TDATA = any, TID = number>(
   options: CollectionOptions<TID, TDATA> = {}
 ): Promise<Collection<TID, TDATA>> {
   // Create table if not exists
-  // Determine SQL type and generator based on idType
-  const idType: IdType = options.idType || "INTEGER";
-  let sqlType: string;
   let generate = options.idGenerate;
-  if (idType === "INTEGER") {
-    sqlType = "INTEGER PRIMARY KEY";
-    // If no generator, auto-increment is handled by SQLite
-  } else if (idType === "STRING") {
-    sqlType = "TEXT PRIMARY KEY";
-    if (!generate) {
-      // Default to uuid generator for string ids
-      generate = () => crypto.randomUUID() as any;
-    }
-  } else {
-    throw new Error(`Unsupported idType: ${idType}`);
-  }
+  let idType = options.idType || "INTEGER PRIMARY KEY";
   const idCol = {
     column: options.idColumn || "id",
-    type: sqlType,
+    type: idType,
     generate,
   };
   const dataCol = {
@@ -152,5 +125,32 @@ export async function createCollection<TDATA = any, TID = number>(
     ${dataCol.column} ${dataCol.type}
   )`;
   await db.execute(createSQL);
+  // Check table schema for id and data columns
+  const pragmaSQL = `PRAGMA table_info(${table})`;
+  const columns: Array<{ name: string; type: string; pk: number }> = [];
+  for await (const row of db.select(pragmaSQL)) {
+    columns.push({ name: row.name, type: row.type, pk: row.pk });
+  }
+  const idColDef = columns.find((c) => c.name === idCol.column);
+  const dataColDef = columns.find((c) => c.name === dataCol.column);
+  // Compare only base type for id column, and check pk if PRIMARY KEY is in idType
+  function baseType(type: string) {
+    return type.split(" ")[0].toUpperCase();
+  }
+  const expectedIdBaseType = baseType(idCol.type);
+  const actualIdBaseType = idColDef ? baseType(idColDef.type) : undefined;
+  if (!idColDef || actualIdBaseType !== expectedIdBaseType) {
+    throw new Error(
+      `Table '${table}' id column '${idCol.column}' type mismatch: expected base type '${expectedIdBaseType}', found '${idColDef ? idColDef.type : "none"}'`
+    );
+  }
+  if (idCol.type.toUpperCase().includes("PRIMARY KEY") && idColDef.pk !== 1) {
+    throw new Error(`Table '${table}' id column '${idCol.column}' is not PRIMARY KEY as expected.`);
+  }
+  if (!dataColDef || dataColDef.type.toUpperCase() !== dataCol.type.toUpperCase()) {
+    throw new Error(
+      `Table '${table}' data column '${dataCol.column}' type mismatch: expected '${dataCol.type}', found '${dataColDef ? dataColDef.type : "none"}'`
+    );
+  }
   return new Collection<TID, TDATA>(table, db, options);
 }
