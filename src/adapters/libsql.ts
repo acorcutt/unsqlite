@@ -1,6 +1,7 @@
+import { type Client } from "@libsql/client";
 import { createCollection } from "../collection";
 
-export function createLibSQLAdapter(client: any) {
+export function createLibSQLAdapter(client: Client) {
   return {
     async collection<TDATA = any, TID = number>(table: string, options?: any) {
       return await createCollection<TDATA, TID>(
