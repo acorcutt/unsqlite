@@ -10,7 +10,7 @@ type CollectionOptions<TID = any, TDATA = any> = {
   dataFormat?: "JSON" | "JSONB";
 };
 
-class Collection<TID, TDATA> {
+export class Collection<TID, TDATA> {
   private table: string;
   private idCol: { column: string; type: string; generate?: (data: TDATA) => TID };
   private dataCol: { column: string; type: "JSON" | "JSONB" };

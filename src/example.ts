@@ -1,8 +1,8 @@
 // Import your db
 import { Database } from "bun:sqlite";
 
-// Import the BunAdapter class
-import { BunAdapter } from "./adapters/bun";
+// Import the Bun adapter factory
+import { createBunAdapter } from "./adapters/bun";
 import { $, gt } from "./operators";
 
 // Define your data type (optional)
@@ -15,7 +15,7 @@ interface UserType {
 const db = new Database(":memory:");
 
 // Create a collection with the table name "users"
-const users = await BunAdapter.collection<UserType>(db, "users");
+const users = await createBunAdapter(db).collection<UserType>("users");
 
 // Just insert data
 const id1 = await users.insert({ name: "Alice", value: 1 });

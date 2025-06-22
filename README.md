@@ -6,7 +6,7 @@ Turn your SQLite database into a NoSQL database!
 
 ```typescript
 import { Database } from "bun:sqlite";
-import { BunAdapter } from "unsqlite";
+import { createBunAdapter } from "unsqlite";
 
 // Define your data type (optional)
 interface UserType {
@@ -18,7 +18,7 @@ interface UserType {
 const db = new Database(":memory:");
 
 // Create a collection with the table name "users"
-const users = await BunAdapter.collection<UserType>(db, "users");
+const users = await createBunAdapter(db).collection<UserType>("users");
 
 // Insert data
 const id1 = await users.insert({ name: "Alice", value: 1 });
@@ -37,8 +37,9 @@ console.log(results);
 
 ```typescript
 import { createClient } from "@libsql/client";
-import { LibsqlAdapter } from "unsqlite";
-import { $, gt } from "unsqlite/operators";
+import { createLibSQLAdapter } from "unsqlite";
+import { operators } from "unsqlite";
+const { $, gt } = operators;
 
 // Define your data type (optional)
 interface UserType {
@@ -47,7 +48,7 @@ interface UserType {
 }
 
 const db = createClient({ url: ":memory:" });
-const users = await LibsqlAdapter.collection<UserType>(db, "users");
+const users = await createLibSQLAdapter(db).collection<UserType>("users");
 
 await users.insert({ name: "Alice", value: 1 });
 await users.insert({ name: "Bob", value: 2 });
