@@ -1,11 +1,27 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
+  "name": "unsqlite",
+  "description": "NoSql for SQLite!",
+  "keywords": [
+    "nosql",
+    "sqlite",
+    "database",
+    "sql.js",
+    "libsql",
+    "better-sqlite3",
+    "sqlite3",
+    "typescript",
+    "collection",
+    "orm",
+    "query-builder",
+    "nodejs",
+    "browser"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/acorcutt/unsqlite.git"
   },
   "author": "Anthony Corcutt <acorcutt@gmail.com>",
-  "name": "unsqlite",
   "type": "module",
   "scripts": {
     "build": "bun build src/index.ts --outdir dist",
@@ -22,11 +38,15 @@
     }
   },
   "devDependencies": {
-    "@libsql/client": "^0.15.0",
-    "@types/bun": "latest"
+    "@libsql/client": "^0.15.9",
+    "@types/bun": "latest",
+    "sql.js": "^1.13.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "better-sqlite3": "^12.0.0"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.8.3"
   },
   "files": [
     "dist",

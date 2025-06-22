@@ -24,7 +24,7 @@ describe("Collection.index()", () => {
     // Run a query and get the explain plan
     const query = col.find({ $gt: [$("foo"), 5] });
     const plan = await query.explain();
-    console.log("Query Plan:", plan);
+    //console.log("Query Plan:", plan);
     // Check that the plan mentions using an index (not a full table scan)
     // Accept either 'USING INDEX' or 'USING COVERING INDEX' or similar
     const planStr = typeof plan === "string" ? plan : JSON.stringify(plan);

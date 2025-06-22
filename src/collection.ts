@@ -7,7 +7,7 @@ type CollectionOptions<TID = any, TDATA = any> = {
   idType?: string; // Full SQL type string, e.g. "INTEGER PRIMARY KEY", "TEXT UNIQUE", etc.
   idGenerate?: (data: TDATA) => TID;
   dataColumn?: string;
-  dataFormat?: "JSON" | "JSONB";
+  dataFormat?: "JSON" | "JSONB"; // Default to "JSON" for better compatibility & index support
 };
 
 export class Collection<TID, TDATA> {
