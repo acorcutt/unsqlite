@@ -3,10 +3,10 @@ import { QueryBuilder, type QueryObject } from "./query-builder";
 
 // --- Collection Class Implementation ---
 type IdType = "INTEGER" | "STRING";
-type CollectionOptions<Id = number | string, Data = any> = {
+type CollectionOptions<TID = number | string, TDATA = any> = {
   idColumn?: string;
   idType?: IdType;
-  idGenerate?: (data: Data) => Id;
+  idGenerate?: (data: TDATA) => TID;
   dataColumn?: string;
   dataFormat?: "JSON" | "JSONB";
 };
@@ -29,13 +29,14 @@ class Collection<TID, TDATA> {
     let generate = options.idGenerate;
     if (idType === "INTEGER") {
       sqlType = "INTEGER PRIMARY KEY";
-      // If no generator, auto-increment is handled by SQLite
-    } else {
+    } else if (idType === "STRING") {
       sqlType = "TEXT PRIMARY KEY";
       if (!generate) {
         // Default to uuid generator for string ids
         generate = () => crypto.randomUUID() as any;
       }
+    } else {
+      throw new Error(`Unsupported idType: ${idType}`);
     }
     this.idCol = {
       column: options.idColumn || "id",
@@ -128,12 +129,14 @@ export async function createCollection<TDATA = any, TID = number>(
   if (idType === "INTEGER") {
     sqlType = "INTEGER PRIMARY KEY";
     // If no generator, auto-increment is handled by SQLite
-  } else {
+  } else if (idType === "STRING") {
     sqlType = "TEXT PRIMARY KEY";
     if (!generate) {
       // Default to uuid generator for string ids
       generate = () => crypto.randomUUID() as any;
     }
+  } else {
+    throw new Error(`Unsupported idType: ${idType}`);
   }
   const idCol = {
     column: options.idColumn || "id",

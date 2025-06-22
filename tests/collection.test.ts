@@ -101,7 +101,7 @@ describe("Collection with string primary key and random id generator", () => {
     db = new Database(":memory:");
     col = await bunCollection<UserType, string>(db, "users_string", {
       idColumn: "user_id",
-      idType: "TEXT PRIMARY KEY",
+      idType: "STRING",
       idGenerate: randomId,
       dataColumn: "user_data",
       dataFormat: "JSON",
