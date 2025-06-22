@@ -10,7 +10,8 @@
   "scripts": {
     "build": "bun build src/index.ts --outdir dist",
     "test": "bun test",
-    "example": "bun run src/example.ts"
+    "example": "bun run src/example.ts",
+    "performance": "bun run src/performance.ts"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
